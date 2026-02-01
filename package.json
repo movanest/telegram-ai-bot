@@ -20,6 +20,7 @@
     "@dxz/tg": "npm:telegraf@4.16.3",
     "axios": "^1.13.4",
     "yt-search": "^2.13.1",
+    "mongodb": "^5.7.0",
     "chalk": "^4.1.2"
   },
   "devDependencies": {
