@@ -63,8 +63,8 @@ make me a cute catgirl wallpaper
 
 ```bash
 # 1. Clone & install
-git clone <your-repo>
-cd <your-repo>
+git clone https://github.com/dnuzi/telegram-ai-bot.git
+cd telegram-ai-bot.git
 npm install
 
 # 2. Create config.js
