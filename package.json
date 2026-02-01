@@ -1,0 +1,26 @@
+{
+  "name": "telegram-bot-basic",
+  "version": "1.0.0",
+  "description": "Simple Telegram bot base made by danuzz",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "telegram-bot",
+    "danuzz"
+  ],
+  "author": "danuzz",
+  "license": "ISC",
+  "dependencies": {
+    "@sh/tg": "^1.0.0-beta.5",
+    "chalk": "^5.3.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}
