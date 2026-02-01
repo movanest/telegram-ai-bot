@@ -1,65 +1,55 @@
-// index.js
-const chalk = require("chalk");
+const chalk = require('chalk');
+const { Telegraf } = require('@sh/tg');
+const config = require('./config');
+const telegramHandler = require('./telegram.js');
 
-const settings = require("./settings");           // contains telegram_token, switch_bot.telegram, etc.
+async function startTelegramBot() {
+    const token = config.telegram_token;
 
-async function tele() {
-    if (!settings.switch_bot?.telegram) {
-        console.log(chalk.red('[INFO] Telegram bot is OFF ❌, skipping startup.'));
-        return;
-    }
-
-    console.log(chalk.green('[INFO] Telegram bot is ON ✅'));
-
-    const { Telegraf } = require("@sh/tg");
-
-    // If you later want multiple tokens: const tokens = [settings.telegram_token, ...other];
-    const tokens = [settings.telegram_token].filter(Boolean);
-
-    if (tokens.length === 0) {
-        console.log(chalk.red("[ERROR] No Telegram token found in settings!"));
+    if (!token || token === "YOUR_BOT_TOKEN_HERE" || token.trim() === '') {
+        console.log(chalk.red('[ERROR] Telegram token is missing or invalid in config.js'));
         process.exit(1);
     }
 
-    const clients = tokens.map(token => new Telegraf(token));
+    console.log(chalk.green('[INFO] Starting Telegram bot...'));
 
-    clients.forEach(client => {
-        // Middleware / handler
-        client.use(async (ctx, next) => {
-            try {
-                await require("./telegram.js")(ctx, client);
-            } catch (err) {
-                console.error(chalk.red("[Handler error]"), err);
-            }
-            await next();
-        });
+    // Create bot instance
+    const bot = new Telegraf(token);
 
-        // Start polling
-        client.launch()
-            .catch(err => {
-                console.error(chalk.red("[Launch failed]"), err);
-            });
+    // Register middleware / command handler
+    bot.use(async (ctx, next) => {
+        try {
+            await telegramHandler(ctx, bot);
+        } catch (err) {
+            console.error(chalk.red('[Telegram Handler Error]'), err);
+        }
+        return next();
     });
 
     // Graceful shutdown
-    process.once("SIGINT", () => {
-        clients.forEach(c => c.stop("SIGINT"));
-        console.log(chalk.yellow("Telegram bot stopped (SIGINT)"));
-    });
+    const stopBot = () => {
+        console.log(chalk.yellow('\n[INFO] Stopping Telegram bot...'));
+        bot.stop('SIGTERM/SIGINT');
+        process.exit(0);
+    };
 
-    process.once("SIGTERM", () => {
-        clients.forEach(c => c.stop("SIGTERM"));
-        console.log(chalk.yellow("Telegram bot stopped (SIGTERM)"));
-    });
+    process.once('SIGINT', stopBot);
+    process.once('SIGTERM', stopBot);
 
-    console.log(chalk.green("TGBOT ONLINE"));
-    return clients;
+    try {
+        await bot.launch();
+        console.log(chalk.green('[SUCCESS] Telegram bot is ONLINE ✅'));
+        console.log(chalk.cyan(`→ Bot username: @${bot.botInfo?.username || 'unknown'}`));
+    } catch (err) {
+        console.error(chalk.red('[ERROR] Bot launch failed:'), err.message);
+        process.exit(1);
+    }
+
+    return bot;
 }
 
-// Run
-(async () => {
-    await tele();
-})().catch(err => {
-    console.error(chalk.red("[Startup error]"), err);
+// Start the bot
+startTelegramBot().catch(err => {
+    console.error(chalk.red('[FATAL] Startup error:'), err);
     process.exit(1);
 });
