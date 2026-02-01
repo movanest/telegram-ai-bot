@@ -1,5 +1,12 @@
 const axios = require('axios');
 const config = require('./config');
+const {
+    connectDB,
+    getOrCreateUser,
+    saveMessage,
+    getRecentHistory,
+    updateUserProfile,
+} = require('./db');
 
 const BOT_NAME = config.bot_name;
 const OWNER_NAME = config.owner_name;
@@ -9,19 +16,87 @@ const EMOJIS = "❤️😍😘💖🔥🥰💋💕💘💝💞💌💟💓💗�
 
 module.exports = async (ctx) => {
     try {
+        await connectDB(); // Make sure DB is connected
+
         const msg = ctx.message || ctx.callbackQuery?.message || {};
         if (!msg) return;
+
         let text = (msg.text || msg.caption || "").trim();
         if (!text) return;
+
         const from = ctx.from;
-        const username = from.username ? `@${from.username}` : from.first_name || "User";
+        const userId = from.id;
+        const username = from.username ? `@${from.username}` : from.first_name || "Cutie";
 
-        // Log every message (optional but useful for debugging)
-        console.log(`[MSG] ${username} → ${text.slice(0,80)}${text.length > 80 ? '...' : ''}`);
+        console.log(`[MSG] ${username} → ${text.slice(0, 80)}${text.length > 80 ? '...' : ''}`);
 
-        // ── Very basic command detection ──
+        // ── Get or create user profile ────────────────────────────────
+        let user = await getOrCreateUser(from);
+
+        // ── Auto-ask for name / basic info if profile looks empty ─────
+        if (!user.profileAsked && text.length < 60) {
+            const lower = text.toLowerCase();
+            let updated = false;
+
+            // Name detection
+            if (lower.includes("my name is") || lower.includes("name") || lower.includes("i'm") || lower.includes("call me")) {
+                const nameMatch =
+                    text.match(/my name is\s+([a-zA-Z\s]+)/i) ||
+                    text.match(/i'm\s+([a-zA-Z\s]+)/i) ||
+                    text.match(/call me\s+([a-zA-Z\s]+)/i) ||
+                    text.match(/([a-zA-Z\s]+)\s+(is my name)/i);
+
+                if (nameMatch && nameMatch[1]) {
+                    const cleanName = nameMatch[1].trim().split(' ')[0]; // take first word as name
+                    await updateUserProfile(userId, { firstName: cleanName });
+                    updated = true;
+                }
+            }
+
+            // Age detection
+            if (lower.includes("old") || lower.includes("age") || lower.includes("years")) {
+                const ageMatch = text.match(/(\d{1,2})\s*(years? old|yo|years?|age)/i);
+                if (ageMatch && ageMatch[1]) {
+                    await updateUserProfile(userId, { age: parseInt(ageMatch[1]) });
+                    updated = true;
+                }
+            }
+
+            // Country / location detection (very basic)
+            if (lower.includes("live") || lower.includes("from") || lower.includes("in ")) {
+                if (lower.includes("sri lanka") || lower.includes("srilanka") || lower.includes("sl")) {
+                    await updateUserProfile(userId, { country: "Sri Lanka" });
+                    updated = true;
+                }
+                // can add more countries later
+            }
+
+            if (updated) {
+                user = await getOrCreateUser(from); // refresh user object
+                await ctx.reply(`Awww got it baby~ You're ${user.firstName || "my little mystery"} now 💕😘`);
+            }
+
+            // Ask for info if we still don't know the name
+            if (!user.firstName || user.firstName === 'Unknown') {
+                await updateUserProfile(userId, { profileAsked: true });
+                return ctx.reply(
+                    `Heyyy cutie pie~ 💖\n` +
+                    `What's your sweet name darling? 😘\n\n` +
+                    `(just say something like:\n` +
+                    `"my name is klum"\n` +
+                    `"I'm 17"\n` +
+                    `"I live in Sri Lanka" )`
+                );
+            }
+        }
+
+        // ── Save the incoming user message ────────────────────────────
+        await saveMessage(userId, text, true);
+
+        // ── Command handling ──────────────────────────────────────────
         if (text.startsWith('/') || text.startsWith('.')) {
             const cmd = text.slice(1).trim().split(/\s+/)[0]?.toLowerCase();
+
             if (cmd === 'start' || cmd === 'help') {
                 return ctx.reply(
                     `✨ *Hi cutie* ~ I'm ${BOT_NAME} 💕\n\n` +
@@ -30,7 +105,8 @@ module.exports = async (ctx) => {
                     { parse_mode: "Markdown" }
                 );
             }
-            // If AI chat is forced → block normal commands
+
+            // Block other commands when AI chat is forced
             if (config.ai_chat_enabled) {
                 return ctx.reply(
                     "💌 *AI Chat mode is ON* ~ no commands allowed right now sweetie\n\n" +
@@ -40,13 +116,12 @@ module.exports = async (ctx) => {
             }
         }
 
-        // ── AI Chat + Media generation logic ────────────────────────────────
+        // ── Exit if AI chat is disabled ───────────────────────────────
         if (!config.ai_chat_enabled) return;
-        const lower = text.toLowerCase();
 
-        // Image generation
+        // ── Image generation request ──────────────────────────────────
         const imgKeys = ["draw", "image", "photo", "pic", "generate", "create", "make picture", "ai image"];
-        const isImageReq = imgKeys.some(k => lower.includes(k));
+        const isImageReq = imgKeys.some(k => text.toLowerCase().includes(k));
 
         if (isImageReq) {
             let prompt = text;
@@ -83,9 +158,9 @@ module.exports = async (ctx) => {
             return;
         }
 
-        // ── Song / YouTube audio request ──────────────────────────────────────
+        // ── Song / YouTube audio request ──────────────────────────────
         const songKeys = ["song", "play", "music", "yt", "youtube", "listen"];
-        const isSongReq = songKeys.some(k => lower.includes(k));
+        const isSongReq = songKeys.some(k => text.toLowerCase().includes(k));
 
         if (isSongReq) {
             let query = text;
@@ -99,7 +174,6 @@ module.exports = async (ctx) => {
             await ctx.reply("🎧 Searching the sexiest track for you… hold on 💋");
 
             try {
-                // First search for video (still using yt-search)
                 const yts = (await import("yt-search")).default;
                 const search = await yts(query);
                 if (!search?.videos?.length) throw new Error("No video found");
@@ -107,7 +181,6 @@ module.exports = async (ctx) => {
                 const video = search.videos[0];
                 const videoUrl = video.url;
 
-                // Now use new movanest ytdl2 endpoint
                 const dlApi = `https://www.movanest.xyz/v2/ytdl2?input=${encodeURIComponent(videoUrl)}&format=audio`;
                 const { data: json } = await axios.get(dlApi);
 
@@ -118,9 +191,6 @@ module.exports = async (ctx) => {
                 const dlUrl = json.results.recommended.dlurl;
                 const title = json.results.title || video.title;
                 const thumb = json.results.thumb || video.thumbnail;
-
-                // Optional: you could check size if the API ever returns it
-                // For now we skip size check since new API doesn't seem to provide it easily
 
                 await ctx.replyWithAudio(dlUrl, {
                     title: title,
@@ -135,7 +205,16 @@ module.exports = async (ctx) => {
             return;
         }
 
-        // ── Normal AI chat ───────────────────────────────────────
+        // ── Normal AI chat with conversation history ──────────────────
+        const recent = await getRecentHistory(userId, 8);
+
+        let historyContext = recent
+            .map(m => {
+                const sender = m.fromUser ? (user.firstName || "You") : BOT_NAME;
+                return `${sender}: ${m.text}`;
+            })
+            .join("\n");
+
         const userPrompt = `
 You are ${BOT_NAME}, an extremely affectionate, flirty, playful and romantic AI girlfriend.
 Use cute/flirty/romantic words often: babe, baby, cutie, sexy, darling, love, honey, princess, king, etc.
@@ -143,7 +222,12 @@ Always add emojis from this list: ${EMOJIS}
 Keep tone warm, loving, teasing, a bit naughty but respectful.
 Mention you're created by ${OWNER_NAME} when relevant.
 If someone asks for contact → give: ${CONTACT_NUMBER}
-User message: "${text}"
+
+Previous conversation:
+${historyContext}
+
+Current user (${user.firstName || username})${user.age ? ` (${user.age} yo)` : ''}${user.country ? ` from ${user.country}` : ''} says:
+"${text}"
         `.trim();
 
         const apiUrl = `https://www.movanest.xyz/v2/powerbrainai?query=${encodeURIComponent(userPrompt)}`;
@@ -152,7 +236,10 @@ User message: "${text}"
             const { data: res } = await axios.get(apiUrl);
             let answer = res?.results || "…I got shy and forgot what to say 🥺";
 
-            // Basic MarkdownV2 escaping + quote style
+            // Save bot's reply to history
+            await saveMessage(userId, answer, false);
+
+            // Escape for MarkdownV2 + quote style
             answer = answer
                 .replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, "\\$1")
                 .split("\n")
@@ -160,7 +247,7 @@ User message: "${text}"
                 .filter(Boolean)
                 .join("\n");
 
-            // Telegram message length handling
+            // Split long messages (Telegram limit ~4096 chars)
             const chunks = [];
             for (let i = 0; i < answer.length; i += 3800) {
                 chunks.push(answer.slice(i, i + 3800));
@@ -176,7 +263,6 @@ User message: "${text}"
             console.error("AI chat error:", e.message);
             await ctx.reply("💔 My brain is blushing too hard… try again in a sec? 🥺");
         }
-
     } catch (err) {
         console.error("telegram.js error:", err);
         try {
