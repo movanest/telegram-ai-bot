@@ -16,10 +16,17 @@
 
   <br>
 
-  ![Love Banner](https://files.catbox.moe/8x3z1k.gif)
-  <!-- You can replace with your own cute animated gif or static image -->
-
 </div>
+
+---
+
+<div align="center">
+  <img src="https://github.com/dnuzi/mova-npm-media/blob/main/Video_2026_02_01-3(2).gif" alt="Hero Animation" width="100%" />
+ <p><em>Live Demo: <a href="https://www.movanest.xyz"></a>movanest.xyz</em></p>
+</div>
+
+
+---
 
 ## ✨ Features
 
