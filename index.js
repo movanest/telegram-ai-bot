@@ -1,5 +1,5 @@
 const chalk = require('chalk');
-const { Telegraf } = require('@sh/tg');
+const { Telegraf } = require('@dxz/tg');
 const config = require('./config');
 const telegramHandler = require('./telegram.js');
 
