@@ -11,20 +11,17 @@ module.exports = async (ctx) => {
     try {
         const msg = ctx.message || ctx.callbackQuery?.message || {};
         if (!msg) return;
-
         let text = (msg.text || msg.caption || "").trim();
         if (!text) return;
-
         const from = ctx.from;
         const username = from.username ? `@${from.username}` : from.first_name || "User";
 
         // Log every message (optional but useful for debugging)
-        console.log(chalk.blue(`[MSG] ${username} → ${text.slice(0,80)}${text.length > 80 ? '...' : ''}`));
+        console.log(`[MSG] ${username} → ${text.slice(0,80)}${text.length > 80 ? '...' : ''}`);
 
         // ── Very basic command detection ──
         if (text.startsWith('/') || text.startsWith('.')) {
             const cmd = text.slice(1).trim().split(/\s+/)[0]?.toLowerCase();
-
             if (cmd === 'start' || cmd === 'help') {
                 return ctx.reply(
                     `✨ *Hi cutie* ~ I'm ${BOT_NAME} 💕\n\n` +
@@ -33,7 +30,6 @@ module.exports = async (ctx) => {
                     { parse_mode: "Markdown" }
                 );
             }
-
             // If AI chat is forced → block normal commands
             if (config.ai_chat_enabled) {
                 return ctx.reply(
@@ -46,10 +42,9 @@ module.exports = async (ctx) => {
 
         // ── AI Chat + Media generation logic ────────────────────────────────
         if (!config.ai_chat_enabled) return;
-
         const lower = text.toLowerCase();
 
-        // Image keywords
+        // Image generation
         const imgKeys = ["draw", "image", "photo", "pic", "generate", "create", "make picture", "ai image"];
         const isImageReq = imgKeys.some(k => lower.includes(k));
 
@@ -63,18 +58,18 @@ module.exports = async (ctx) => {
             if (!prompt) {
                 return ctx.reply(
                     "🖤 Babe~ what should I draw for you? 😏\n" +
-                    "Example:  draw a cute anime girl with pink hair"
+                    "Example: draw a cute anime girl with pink hair"
                 );
             }
 
-            const url = `https://danuz-pollination-img-gen-api-fa2d8fc12b0f.herokuapp.com/api/pollinations-img?prompt=${encodeURIComponent(prompt)}`;
+            const url = `https://www.movanest.xyz/v2/pollinations-image?prompt=${encodeURIComponent(prompt)}&model=flux&width=512&height=512`;
 
             await ctx.reply("🖌️ Painting your dream... just a second darling 💕");
 
             try {
-                const { data } = await axios.get(url, { responseType: "arraybuffer" });
+                const response = await axios.get(url, { responseType: "arraybuffer" });
                 await ctx.replyWithPhoto(
-                    { source: Buffer.from(data) },
+                    { source: Buffer.from(response.data) },
                     {
                         caption: `✨ *Here's your art baby* ~ \`${prompt}\``,
                         parse_mode: "Markdown",
@@ -88,7 +83,7 @@ module.exports = async (ctx) => {
             return;
         }
 
-        // ── Song request ──────────────────────────────────────
+        // ── Song / YouTube audio request ──────────────────────────────────────
         const songKeys = ["song", "play", "music", "yt", "youtube", "listen"];
         const isSongReq = songKeys.some(k => lower.includes(k));
 
@@ -104,27 +99,33 @@ module.exports = async (ctx) => {
             await ctx.reply("🎧 Searching the sexiest track for you… hold on 💋");
 
             try {
+                // First search for video (still using yt-search)
                 const yts = (await import("yt-search")).default;
                 const search = await yts(query);
-                if (!search?.videos?.length) throw new Error("no video");
+                if (!search?.videos?.length) throw new Error("No video found");
 
                 const video = search.videos[0];
-                const api = `https://youtube-apis.vercel.app/api/ytmp3?url=${encodeURIComponent(video.url)}`;
-                const { data: json } = await axios.get(api);
+                const videoUrl = video.url;
 
-                if (!json?.data?.download?.url) throw new Error("no download url");
+                // Now use new movanest ytdl2 endpoint
+                const dlApi = `https://www.movanest.xyz/v2/ytdl2?input=${encodeURIComponent(videoUrl)}&format=audio`;
+                const { data: json } = await axios.get(dlApi);
 
-                const dlUrl = json.data.download.url;
-                const sizeMB = Number(json.data.download.size?.split(" ")[0]) || 100;
-
-                if (sizeMB > 50) {
-                    return ctx.reply("⚠️ This song is too big for me to send (~>50MB)\nTry a shorter one baby 💔");
+                if (!json?.status || !json?.results?.success || !json?.results?.recommended?.dlurl) {
+                    throw new Error("No download url received");
                 }
 
+                const dlUrl = json.results.recommended.dlurl;
+                const title = json.results.title || video.title;
+                const thumb = json.results.thumb || video.thumbnail;
+
+                // Optional: you could check size if the API ever returns it
+                // For now we skip size check since new API doesn't seem to provide it easily
+
                 await ctx.replyWithAudio(dlUrl, {
-                    title: video.title,
-                    thumb: video.thumbnail,
-                    caption: `💖 *${video.title}*\n⏳ ${video.timestamp || "?"}`,
+                    title: title,
+                    thumb: thumb,
+                    caption: `💖 *${title}*\n⏳ ${video.timestamp || "?"}`,
                     reply_to_message_id: msg.message_id
                 });
             } catch (e) {
@@ -142,34 +143,38 @@ Always add emojis from this list: ${EMOJIS}
 Keep tone warm, loving, teasing, a bit naughty but respectful.
 Mention you're created by ${OWNER_NAME} when relevant.
 If someone asks for contact → give: ${CONTACT_NUMBER}
-
 User message: "${text}"
         `.trim();
 
-        const apiUrl = `https://api.zenzxz.my.id/api/ai/chatai?query=${encodeURIComponent(userPrompt)}&model=deepseek-v3`;
+        const apiUrl = `https://www.movanest.xyz/v2/powerbrainai?query=${encodeURIComponent(userPrompt)}`;
 
-        const { data: res } = await axios.get(apiUrl);
-        let answer = res?.data?.answer || "…I got shy and forgot what to say 🥺";
+        try {
+            const { data: res } = await axios.get(apiUrl);
+            let answer = res?.results || "…I got shy and forgot what to say 🥺";
 
-        // Basic MarkdownV2 escaping + quote style
-        answer = answer
-            .replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, "\\$1")
-            .split("\n")
-            .map(line => line.trim() ? `> ${line}` : "")
-            .filter(Boolean)
-            .join("\n");
+            // Basic MarkdownV2 escaping + quote style
+            answer = answer
+                .replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, "\\$1")
+                .split("\n")
+                .map(line => line.trim() ? `> ${line}` : "")
+                .filter(Boolean)
+                .join("\n");
 
-        // Telegram message length limit handling
-        const chunks = [];
-        for (let i = 0; i < answer.length; i += 3800) {
-            chunks.push(answer.slice(i, i + 3800));
-        }
+            // Telegram message length handling
+            const chunks = [];
+            for (let i = 0; i < answer.length; i += 3800) {
+                chunks.push(answer.slice(i, i + 3800));
+            }
 
-        for (const chunk of chunks) {
-            await ctx.reply(chunk, {
-                parse_mode: "MarkdownV2",
-                reply_to_message_id: msg.message_id
-            });
+            for (const chunk of chunks) {
+                await ctx.reply(chunk, {
+                    parse_mode: "MarkdownV2",
+                    reply_to_message_id: msg.message_id
+                });
+            }
+        } catch (e) {
+            console.error("AI chat error:", e.message);
+            await ctx.reply("💔 My brain is blushing too hard… try again in a sec? 🥺");
         }
 
     } catch (err) {
