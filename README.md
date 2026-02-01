@@ -96,7 +96,7 @@ node index.js
 🌐 **Website** → [www.movanest.xyz](https://www.movanest.xyz)  
 📧 **Email** → [mova.nest@gmail.com](mailto:mova.nest@gmail.com)  
 
-Made with ♡ in Colombo, Sri Lanka  
+Made with ♡ in Ratnapura, Sri Lanka  
 Last updated: February 2026
 
 </div>
