@@ -81,8 +81,8 @@ node index.js
 <table>
   <tr>
     <td align="center">
-      <a href="https://x.com/DanuZz">
-        <img src="https://files.catbox.moe/abc123.png" width="100px;" alt="Danu'Zz"/><br />
+      <a href="https://danuzz.movanest.xyz">
+        <img src="https://www.movanest.xyz/FRVasU.jpeg" width="100px;" alt="Danu'Zz"/><br />
         <sub><b>@Danu'Zz</b></sub>
       </a>
     </td>
@@ -95,7 +95,6 @@ node index.js
 
 🌐 **Website** → [www.movanest.xyz](https://www.movanest.xyz)  
 📧 **Email** → [mova.nest@gmail.com](mailto:mova.nest@gmail.com)  
-🐦 **X / Twitter** → [@DanuZz](https://x.com/DanuZz)
 
 Made with ♡ in Colombo, Sri Lanka  
 Last updated: February 2026
