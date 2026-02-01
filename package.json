@@ -15,7 +15,7 @@
     "danuzz"
   ],
   "author": "danuzz",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "@dxz/tg": "npm:telegraf@4.16.3",
     "axios": "^1.13.4",
