@@ -1,10 +1,10 @@
 <div align="center">
-
+ 
   <h1>💕 MovaNest AI Girlfriend Bot 💕</h1>
 
   <p>
     <strong>A super flirty, loving and playful Telegram AI girlfriend</strong><br>
-    Built with lots of ❤️ by <a href="https://x.com/DanuZz">@Danu'Zz</a>
+    Built with lots of ❤️ by <a href="https://danuzz.movanest.xyz">@Danu'Zz</a>
   </p>
 
   <!-- Badges -->
